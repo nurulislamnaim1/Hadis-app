@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f6b4f">
+<title>হাদিস | Hadith</title>
+<link href="https://fonts.googleapis.com/css2?family=Amiri&family=Noto+Sans+Bengali:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f6f7f4;--card:#fff;--tx:#1c1f1d;--mu:#667;--pr:#0f6b4f;--bd:#e2e5df}
+:root[data-t=dark]{--bg:#121513;--card:#1c211e;--tx:#e8ece9;--mu:#9aa5a0;--pr:#3ecf9b;--bd:#2c332f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:'Noto Sans Bengali',system-ui,sans-serif;line-height:1.6}
+header{position:sticky;top:0;background:var(--pr);color:#fff;padding:10px 12px;display:flex;gap:8px;align-items:center;z-index:5}
+header h1{font-size:18px;margin:0;flex:1}
+header button{background:rgba(255,255,255,.2);color:#fff;border:0;border-radius:8px;padding:6px 10px;font-size:15px}
+main{padding:12px;max-width:760px;margin:auto}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:10px}
+.item{display:flex;justify-content:space-between;gap:8px;cursor:pointer}
+.item small{color:var(--mu)}
+input[type=search]{width:100%;padding:10px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);font-size:16px;margin-bottom:10px}
+.ar{font-family:Amiri,'Traditional Arabic',serif;font-size:24px;direction:rtl;text-align:right;line-height:2}
+.bn{margin-top:6px}.en{margin-top:6px;color:var(--mu);font-family:system-ui,sans-serif;font-size:15px}
+.meta{display:flex;justify-content:space-between;font-size:13px;color:var(--pr);margin-bottom:4px}
+.meta button{background:none;border:0;font-size:20px;color:var(--pr)}
+.tabs{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto}
+.tabs button,.chip{border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:20px;padding:6px 12px;white-space:nowrap}
+.tabs button.on,.chip.on{background:var(--pr);color:#fff;border-color:var(--pr)}
+.msg{text-align:center;color:var(--mu);padding:20px}
+</style>
+</head>
+<body>
+<header>
+  <button id="back" hidden>←</button>
+  <h1 id="title">হাদিস | Hadith</h1>
+  <button id="bm">★</button>
+  <button id="th">🌙</button>
+</header>
+<main>
+  <div id="langs" class="tabs" hidden></div>
+  <div id="view"></div>
+</main>
+<script>
+const BASE='https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/';
+const COLS=[
+ {id:'bukhari',n:'সহীহ বুখারী',e:'Sahih al-Bukhari'},
+ {id:'muslim',n:'সহীহ মুসলিম',e:'Sahih Muslim'},
+ {id:'abudawud',n:'সুনান আবু দাউদ',e:'Sunan Abi Dawud'},
+ {id:'tirmidhi',n:'জামি তিরমিযী',e:'Jami at-Tirmidhi'},
+ {id:'nasai',n:'সুনান নাসাঈ',e:"Sunan an-Nasa'i"},
+ {id:'ibnmajah',n:'সুনান ইবনে মাজাহ',e:'Sunan Ibn Majah'}];
+const $=s=>document.querySelector(s), view=$('#view');
+const store={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+let langs=store.get('langs',{ar:1,bn:1,en:1}), marks=store.get('marks',{}), cur=null, stack=[];
+if(store.get('dark',false)) document.documentElement.dataset.t='dark';
+
+async function load(url){const r=await fetch(url);if(!r.ok)throw new Error(r.status);return r.json()}
+function esc(s){return String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+function go(fn,title,back=true){stack.push({fn,title});render()}
+function render(){const t=stack[stack.length-1];$('#title').textContent=t.title;$('#back').hidden=stack.length<2;$('#langs').hidden=!t.hadith;t.fn()}
+$('#back').onclick=()=>{stack.pop();render()};
+$('#th').onclick=()=>{const d=document.documentElement.dataset.t!=='dark';document.documentElement.dataset.t=d?'dark':'';store.set('dark',d)};
+$('#bm').onclick=()=>go(showMarks,'★ বুকমার্ক');
+
+function langBar(){
+  const el=$('#langs');el.innerHTML='';
+  [['ar','العربية'],['bn','বাংলা'],['en','English']].forEach(([k,l])=>{
+    const b=document.createElement('button');b.textContent=l;b.className=langs[k]?'on':'';
+    b.onclick=()=>{langs[k]=langs[k]?0:1;store.set('langs',langs);langBar();if(window._redraw)window._redraw()};
+    el.appendChild(b)});
+}
+
+function home(){
+  view.innerHTML='';
+  COLS.forEach(c=>{const d=document.createElement('div');d.className='card item';
+    d.innerHTML=`<div><b>${c.n}</b><br><small>${c.e}</small></div><span>›</span>`;
+    d.onclick=()=>go(()=>books(c),c.n);view.appendChild(d)});
+}
+
+async function books(c){
+  view.innerHTML='<div class="msg">লোড হচ্ছে… Loading…</div>';
+  try{
+    c.eng=c.eng||await load(BASE+'eng-'+c.id+'.min.json');
+    const s=c.eng.metadata.sections, det=c.eng.metadata.section_details||c.eng.metadata.section_detail||{};
+    view.innerHTML='<input type="search" id="q" placeholder="ইংরেজিতে সার্চ / Search English text…">';
+    const list=document.createElement('div');view.appendChild(list);
+    const draw=f=>{list.innerHTML='';
+      if(f&&f.length>2){const r=c.eng.hadiths.filter(h=>h.text.toLowe
